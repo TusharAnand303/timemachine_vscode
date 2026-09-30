@@ -77,14 +77,33 @@ async function readDiskBaseline(document: vscode.TextDocument): Promise<string |
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-	const store = new TimelineStore(context.storageUri ?? context.globalStorageUri);
-	await store.load();
-	const view = new TimelineView(store);
-	context.subscriptions.push(vscode.window.registerTreeDataProvider('timemachine.timeline', view));
 	const output = vscode.window.createOutputChannel('TimeMachine');
 	context.subscriptions.push(output);
+	const store = new TimelineStore(context.storageUri ?? context.globalStorageUri);
+	try { await store.load(); }
+	catch (error) { output.appendLine(`Could not load earlier timeline events: ${String(error)}`); }
+	const view = new TimelineView(store);
+	context.subscriptions.push(vscode.window.registerTreeDataProvider('timemachine.timeline', view));
+	const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, -100);
+	status.command = 'timemachine.openTimeline';
+	status.show();
+	context.subscriptions.push(status);
+	const updateStatus = (): void => {
+		const terminals = vscode.window.terminals;
+		const missingShellIntegration = terminals.length > 0 && terminals.every(terminal => !terminal.shellIntegration);
+		status.text = `${missingShellIntegration ? '$(warning)' : '$(history)'} TimeMachine ${store.all.length}`;
+		status.tooltip = !vscode.workspace.workspaceFolders?.length
+			? 'TimeMachine is active. Open a project folder to record file saves.'
+			: missingShellIntegration
+				? 'TimeMachine is active, but no terminal has shell integration. Open a new integrated terminal or run TimeMachine: Check Setup.'
+				: `TimeMachine is active with ${store.all.length} timeline events. Click to open the timeline.`;
+	};
+	updateStatus();
+	context.subscriptions.push(vscode.window.onDidOpenTerminal(updateStatus));
+	context.subscriptions.push(vscode.window.onDidCloseTerminal(updateStatus));
+	context.subscriptions.push(vscode.window.onDidChangeTerminalShellIntegration(updateStatus));
 	const record = async (event: TimelineEvent, snapshots?: { before: string; after: string }): Promise<void> => {
-		try { await store.add(event, snapshots); view.refresh(); }
+		try { await store.add(event, snapshots); view.refresh(); updateStatus(); }
 		catch (error) { output.appendLine(`Could not record event: ${String(error)}`); }
 	};
 	const isWorkspaceFile = (document: vscode.TextDocument): boolean => document.uri.scheme === 'file' && !!vscode.workspace.getWorkspaceFolder(document.uri);
@@ -121,7 +140,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}));
 	const executions = new WeakMap<vscode.TerminalShellExecution, string>();
 	context.subscriptions.push(vscode.window.onDidStartTerminalShellExecution(event => {
-		if (event.execution.cwd && !vscode.workspace.getWorkspaceFolder(event.execution.cwd)) { return; }
 		const command = event.execution.commandLine.value.trim();
 		if (!command) { return; }
 		const id = randomUUID();
@@ -145,8 +163,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}));
 	context.subscriptions.push(vscode.window.onDidEndTerminalShellExecution(event => {
 		const id = executions.get(event.execution);
-		if (!id) { return; }
 		const status = event.exitCode === undefined ? 'unknown' : event.exitCode === 0 ? 'passed' : 'failed';
+		if (!id) {
+			const command = event.execution.commandLine.value.trim();
+			if (command) { void record({ kind: 'command', id: randomUUID(), at: Date.now(), command, terminal: event.terminal.name, status, exitCode: event.exitCode, finishedAt: Date.now() }); }
+			return;
+		}
 		void store.finishCommand(id, status, event.exitCode).then(() => view.refresh(), error => output.appendLine(`Could not update command: ${String(error)}`));
 	}));
 	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(snapshotScheme, {
@@ -193,7 +215,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push(vscode.commands.registerCommand('timemachine.openTimeline', async () => {
 		await vscode.commands.executeCommand('timemachine.timeline.focus');
 	}));
+	context.subscriptions.push(vscode.commands.registerCommand('timemachine.showStatus', () => {
+		const shellEnabled = vscode.workspace.getConfiguration('terminal.integrated.shellIntegration').get<boolean>('enabled', true);
+		const details = {
+			folders: vscode.workspace.workspaceFolders?.map(folder => folder.name) ?? [],
+			recordedEvents: store.all.length,
+			shellIntegrationEnabled: shellEnabled,
+			terminals: vscode.window.terminals.map(terminal => ({ name: terminal.name, shellIntegration: !!terminal.shellIntegration })),
+		};
+		output.appendLine(`TimeMachine setup at ${new Date().toLocaleString()}`);
+		output.appendLine(JSON.stringify(details, null, 2));
+		if (!shellEnabled) { output.appendLine('Enable terminal.integrated.shellIntegration.enabled in VS Code settings, then open a new terminal.'); }
+		else if (details.terminals.length && details.terminals.every(terminal => !terminal.shellIntegration)) {
+			output.appendLine('Open a new integrated terminal. Commands run in external terminals cannot be detected.');
+		}
+		output.show(true);
+		return details;
+	}));
+	context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(event => {
+		updateStatus();
+		if (event.added.length) { void record({ kind: 'opened', id: randomUUID(), at: Date.now(), label: 'Project opened' }); }
+	}));
 	await record({ kind: 'opened', id: randomUUID(), at: Date.now(), label: vscode.workspace.workspaceFolders?.length ? 'Project opened' : 'Window opened' });
+	output.appendLine('TimeMachine activated. Use TimeMachine: Check Setup to inspect workspace and terminal capture.');
 }
 
 export function deactivate(): void {}
