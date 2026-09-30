@@ -80,10 +80,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	const output = vscode.window.createOutputChannel('TimeMachine');
 	context.subscriptions.push(output);
 	const store = new TimelineStore(context.storageUri ?? context.globalStorageUri);
+	const view = new TimelineView(store);
+	const tree = vscode.window.createTreeView('timemachine.timeline', { treeDataProvider: view });
+	const updateTreeMessage = (): void => {
+		tree.message = vscode.workspace.workspaceFolders?.length
+			? undefined
+			: 'Open a project folder in this window to record file saves. Start a new integrated terminal to record commands.';
+	};
+	updateTreeMessage();
+	context.subscriptions.push(tree);
 	try { await store.load(); }
 	catch (error) { output.appendLine(`Could not load earlier timeline events: ${String(error)}`); }
-	const view = new TimelineView(store);
-	context.subscriptions.push(vscode.window.registerTreeDataProvider('timemachine.timeline', view));
+	view.refresh();
 	const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, -100);
 	status.command = 'timemachine.openTimeline';
 	status.show();
@@ -225,6 +233,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		};
 		output.appendLine(`TimeMachine setup at ${new Date().toLocaleString()}`);
 		output.appendLine(JSON.stringify(details, null, 2));
+		if (!details.folders.length) { output.appendLine('Open a project folder in this VS Code window to record file saves.'); }
 		if (!shellEnabled) { output.appendLine('Enable terminal.integrated.shellIntegration.enabled in VS Code settings, then open a new terminal.'); }
 		else if (details.terminals.length && details.terminals.every(terminal => !terminal.shellIntegration)) {
 			output.appendLine('Open a new integrated terminal. Commands run in external terminals cannot be detected.');
@@ -233,6 +242,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		return details;
 	}));
 	context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(event => {
+		updateTreeMessage();
 		updateStatus();
 		if (event.added.length) { void record({ kind: 'opened', id: randomUUID(), at: Date.now(), label: 'Project opened' }); }
 	}));

@@ -46,6 +46,13 @@ npm test
 npm run vsix
 ```
 
-Use **Run → Start Debugging** or **Run → Run Without Debugging** with this repository open. The Extension Development Host starts with this repository as its project. To test TimeMachine in a different project, install the generated VSIX in your regular VS Code window using **Extensions → … → Install from VSIX**.
+### Test in VS Code on macOS
+
+1. Open this extension repository in VS Code. Run `npm install` once, then `npm run compile`.
+2. Choose **Run → Run Without Debugging** from the macOS menu bar. This opens an **Extension Development Host** with the repository as its project. Use the menu instead of F5 if macOS assigns F5 to Dictation. **Start Debugging** also works when a debugger attaches successfully.
+3. In the new window, click the TimeMachine icon. You should see **Project opened**. If you see **There is no data provider registered**, close that development window and choose **Run → Run Without Debugging** again; that message means the extension host has not started. Check **View → Output → Log (Extension Host)** if it persists.
+4. Save a text file in the open project, then open a **new** integrated terminal in that same window and run `node -e "process.exit(0)"` and `node -e "process.exit(1)"`. The save and both commands should appear in the timeline. Run **TimeMachine: Check Setup** from the Command Palette to inspect the workspace and terminal shell integration.
+
+To test a different project without a debugger, run `npm run vsix` in this repository. In your regular VS Code window, use **Extensions → … → Install from VSIX**, select `timemachine-1.1.0.vsix` from this repository, and reload when prompted. Open the other project with **File → Open Folder** in that same window, then start a new integrated terminal and run its commands. Commands started before TimeMachine activates cannot be recovered.
 
 See [PUBLISHING.md](PUBLISHING.md) for Marketplace setup and release steps. For problems or feature requests, see [SUPPORT.md](SUPPORT.md).
