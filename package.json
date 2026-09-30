@@ -3,7 +3,7 @@
   "displayName": "TimeMachine",
   "description": "A local timeline of file saves, terminal commands, and failures between Git commits.",
   "version": "1.1.0",
-  "publisher": "tusharanand303",
+  "publisher": "itstushar",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
