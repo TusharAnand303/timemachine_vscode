@@ -5,11 +5,13 @@ export type TimelineEvent = OpenEvent | SaveEvent | CommandEvent | ReadyEvent;
 interface BaseEvent {
 	id: string;
 	at: number;
+	folderUri?: string;
 }
 
 export interface OpenEvent extends BaseEvent {
 	kind: 'opened';
 	label: string;
+	reason?: 'startup' | 'folder-added';
 }
 
 export interface SaveEvent extends BaseEvent {
@@ -26,6 +28,8 @@ export interface CommandEvent extends BaseEvent {
 	kind: 'command';
 	command: string;
 	terminal: string;
+	cwd?: string;
+	cwdInferred?: boolean;
 	status: 'running' | 'passed' | 'failed' | 'unknown';
 	exitCode?: number;
 	finishedAt?: number;
@@ -50,12 +54,16 @@ export function lineCounts(before: string, after: string): { added: number; remo
 	return { added, removed };
 }
 
+export function isServerReadyOutput(output: string): boolean {
+	return /(?:\bready in\s+\d+|\bserver (?:started|running|ready)\b|\blistening on\b|\blocal:\s*https?:\/\/)/i.test(output);
+}
+
 export function changesSinceLastPass(events: TimelineEvent[], failure: CommandEvent): SaveEvent[] {
 	const lastPass = events
-		.filter((event): event is CommandEvent => event.kind === 'command' && event.command === failure.command && event.status === 'passed' && (event.finishedAt ?? event.at) < failure.at)
+		.filter((event): event is CommandEvent => event.kind === 'command' && event.folderUri === failure.folderUri && event.command === failure.command && event.status === 'passed' && (event.finishedAt ?? event.at) < failure.at)
 		.sort((a, b) => (b.finishedAt ?? b.at) - (a.finishedAt ?? a.at))[0];
 	const saves = events
-		.filter((event): event is SaveEvent => event.kind === 'save' && event.at < failure.at && (!lastPass || event.at > (lastPass.finishedAt ?? lastPass.at)))
+		.filter((event): event is SaveEvent => event.kind === 'save' && event.folderUri === failure.folderUri && event.at < failure.at && (!lastPass || event.at > (lastPass.finishedAt ?? lastPass.at)))
 		.sort((a, b) => b.at - a.at);
 	return lastPass ? saves : saves.slice(0, 1);
 }

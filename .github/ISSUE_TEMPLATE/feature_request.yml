@@ -1,0 +1,18 @@
+name: Feature request
+description: Suggest a concrete improvement to your workflow.
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: workflow
+    attributes:
+      label: What are you trying to do?
+      description: Describe the coding, history, or reporting workflow that needs improvement.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What should TimeMachine do, and how would you use it?
+    validations:
+      required: true

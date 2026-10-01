@@ -1,0 +1,7 @@
+{
+  "repository": "TusharAnand303/timemachine_vscode",
+  "description": "VS Code coding time tracker and local activity timeline with AI-assisted session labels, searchable terminal command history, saved-file comparisons, and JSON/CSV project reports.",
+  "homepage": "https://marketplace.visualstudio.com/items?itemName=itstushar.timemachine",
+  "topics": ["vscode-extension", "coding-time", "time-tracking", "command-history", "terminal-history", "local-history", "developer-tools", "developer-productivity", "ai-assisted-coding", "file-snapshots", "activity-timeline", "typescript"],
+  "socialPreview": "marketing/github-social-preview.png"
+}

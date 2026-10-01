@@ -56,16 +56,37 @@ export class TimelineStore {
 		await this.writeQueue;
 	}
 
-	async finishCommand(id: string, status: CommandEvent['status'], exitCode?: number): Promise<void> {
+	async finishCommand(id: string, status: CommandEvent['status'], exitCode?: number, commandLine?: string): Promise<void> {
 		this.writeQueue = this.writeQueue.catch(() => undefined).then(async () => {
 			const command = this.events.find((event): event is CommandEvent => event.kind === 'command' && event.id === id);
 			if (!command) { return; }
 			command.status = status;
+			if (commandLine?.trim()) { command.command = commandLine.trim(); }
 			command.exitCode = exitCode;
 			command.finishedAt = Date.now();
 			await this.persist();
 		});
 		await this.writeQueue;
+	}
+
+	async removeIds(ids: ReadonlySet<string>): Promise<number> {
+		let count = 0;
+		this.writeQueue = this.writeQueue.catch(() => undefined).then(async () => {
+			const removed = this.events.filter(event => ids.has(event.id) || (event.kind === 'ready' && ids.has(event.commandId)));
+			if (!removed.length) { return; }
+			const removedIds = new Set(removed.map(event => event.id));
+			this.events = this.events.filter(event => !removedIds.has(event.id));
+			count = removed.length;
+			await this.persist();
+			for (const event of removed) {
+				if (event.kind !== 'save') { continue; }
+				for (const name of [event.before, event.after]) {
+					if (name) { await fs.rm(path.join(this.directory, 'snapshots', name), { force: true }); }
+				}
+			}
+		});
+		await this.writeQueue;
+		return count;
 	}
 
 	private async persist(): Promise<void> {

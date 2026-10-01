@@ -1,58 +1,97 @@
-# TimeMachine
+# TimeMachine: coding time and command history for VS Code
 
-TimeMachine shows what happened between Git commits: project opens, text file saves, integrated terminal commands, command results, and common development server readiness messages. When a command fails, it highlights the files saved since the previous passing run of that same command.
+Track your coding time, revisit terminal commands, and inspect saved file changes in one local project timeline.
 
-TimeMachine keeps its history in VS Code's local workspace storage. It does not create Git commits or upload your source code.
+[Install from the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=itstushar.timemachine) · [Getting started](docs/getting-started.md) · [Report a bug](https://github.com/TusharAnand303/timemachine_vscode/issues/new/choose)
 
-Requires VS Code 1.93 or newer because command tracking uses the stable terminal shell integration API.
+**Free to use · VS Code 1.93+ · No account required · Preview release**
 
-## What you can do
+TimeMachine helps you answer practical questions: What did I work on? Which command failed? What changed since it last passed? How much time did I label as my own coding or AI-assisted work?
 
-- Browse recent saves and commands in the **TimeMachine** Activity Bar view.
-- Open a saved version or compare its before and after snapshots.
-- Restore the version before a save into an unsaved editor buffer, then review and save it.
-- Expand a failed command to see changes made since its last passing run. This is a time-based clue, not proof of the cause.
-- Run **TimeMachine: Check Setup** if the timeline is empty or terminal commands do not appear.
+![TimeMachine activity graph with a failed command, related saves, full project folder path, and event details](media/screenshots/activity-graph.png)
 
-## Try it
+*Product screenshots use illustrative data from an example project.*
 
-1. Open a project folder in VS Code and click the TimeMachine clock in the Activity Bar. You should see **Project opened**. The status bar also shows **TimeMachine** when the extension is active.
-2. Save a text file in that project. A save appears with added and removed line counts. Right-click it for **Compare Change** and **Restore Before Change**.
-3. Open a **new integrated terminal** in the same VS Code window and run a command. A completed command appears as passed, failed, or unknown. A long-running `npm run dev` command appears as running; common server-ready output adds a readiness event.
+## Coding time, directly in the sidebar
 
-For a repeatable failure example, create `check.js` with `process.exitCode = 0;`, save it, and run `node check.js`. Change it to `process.exitCode = 1;`, save, and run `node check.js` again. Expand the failed run to see the intervening save.
+Choose **My coding** or **AI-assisted** in the **Coding Time** panel. Switch modes as you work, pause when finished, and review **Today**, **7 days**, or **All time**. Expand the daily breakdown to see both modes for each of the past seven calendar days.
 
-## If commands do not appear
+The timer counts while the VS Code window is focused. It pauses while unfocused and starts paused after reloading VS Code. Modes are labels you select; TimeMachine does not detect AI authorship of individual edits.
 
-Run **TimeMachine: Check Setup** from the Command Palette. It opens the TimeMachine output channel and reports the open project, event count, and shell integration status for each terminal.
+![Coding Time sidebar showing the project folder, time ranges, My coding and AI-assisted buttons, daily breakdown, and report export](media/screenshots/coding-time.png)
 
-TimeMachine receives command events only from terminals with [VS Code shell integration](https://code.visualstudio.com/docs/terminal/shell-integration). It cannot see commands run in macOS Terminal, iTerm, or terminals in another VS Code window. If shell integration is off, enable `terminal.integrated.shellIntegration.enabled` in VS Code settings and open a new integrated terminal. On macOS, zsh and bash are supported. Some custom shell configurations prevent automatic integration.
+## Searchable terminal command history
 
-## Limits and privacy
+Find an earlier command by its text, folder, terminal, or result. See running, passed, failed, and unknown results, with exit codes and duration where available. **Copy command** retrieves the command text. **View in graph** brings its surrounding project activity into view.
 
-- TimeMachine keeps up to 500 events in local workspace storage. Text snapshots are stored only for files up to 512 KiB.
-- Terminal output is inspected only to recognize a few server-ready messages; it is not stored. Command lines and exit codes are stored locally.
-- Only saved text files are tracked. Unsaved edits and commands in external terminals are not captured.
-- Restore changes the open editor buffer; it does not save automatically.
+![Searchable command history with command results, folders, timing, and copy actions](media/screenshots/command-history.png)
 
-## Development
+Commands must run in a shell-integrated terminal inside an open project. Start a new integrated terminal after installation. External terminals and commands run before activation are not captured.
 
-Use Node.js 22 or newer for the test and packaging tools.
+## Inspect the changes before a failure
 
-```sh
-npm install
-npm run compile
-npm test
-npm run vsix
-```
+Select a failed command to see files saved since the previous passing run of that command in the same project. Compare available before/after snapshots or restore an earlier version into the editor for review. Without an earlier passing run, TimeMachine suggests the latest preceding save.
 
-### Test in VS Code on macOS
+Dashed links are timing clues, rather than proof of the cause. [Try the repeatable failure example](docs/failure-investigation.md).
 
-1. Open this extension repository in VS Code. Run `npm install` once, then `npm run compile`.
-2. Choose **Run → Run Without Debugging** from the macOS menu bar. This opens an **Extension Development Host** with the repository as its project. Use the menu instead of F5 if macOS assigns F5 to Dictation. **Start Debugging** also works when a debugger attaches successfully.
-3. In the new window, click the TimeMachine icon. You should see **Project opened**. If you see **There is no data provider registered**, close that development window and choose **Run → Run Without Debugging** again; that message means the extension host has not started. Check **View → Output → Log (Extension Host)** if it persists.
-4. Save a text file in the open project, then open a **new** integrated terminal in that same window and run `node -e "process.exit(0)"` and `node -e "process.exit(1)"`. The save and both commands should appear in the timeline. Run **TimeMachine: Check Setup** from the Command Palette to inspect the workspace and terminal shell integration.
+## Project context and local activity reports
 
-To test a different project without a debugger, run `npm run vsix` in this repository. In your regular VS Code window, use **Extensions → … → Install from VSIX**, select `timemachine-1.1.0.vsix` from this repository, and reload when prompted. Open the other project with **File → Open Folder** in that same window, then start a new integrated terminal and run its commands. Commands started before TimeMachine activates cannot be recovered.
+The sidebar and graph show the opened folder's name and full path. Browse nested project folders, filter activity by folder or time range, and use the arrow keys to browse events. Older opening records also show the current project folder name; newer records explain whether the folder was added or the extension started with it open.
 
-See [PUBLISHING.md](PUBLISHING.md) for Marketplace setup and release steps. For problems or feature requests, see [SUPPORT.md](SUPPORT.md).
+Export the selected project's retained activity and daily coding totals as **JSON** or **CSV**, directly from the sidebar, graph, or Command Palette. Reports contain command text and paths; saved source contents and snapshot files are excluded. Report export is independent of the graph's current filters.
+
+## Get started in three steps
+
+1. Install **TimeMachine - Coding Time & Command History**, open a project folder, and select the TimeMachine clock in the Activity Bar.
+2. In **Coding Time**, select **My coding** or **AI-assisted**. Save a text file and run a command in a new integrated terminal inside the project.
+3. Select the graph icon above **Project Timeline** to inspect activity. Use **Command history** to find past runs or **Export report** to save your project report.
+
+To install the local release, open **Extensions → … → Install from VSIX**, choose `releases/timemachine-1.5.0.vsix`, and reload VS Code. [Detailed setup](docs/getting-started.md).
+
+## Useful commands
+
+| Command Palette action | Use it to |
+| --- | --- |
+| TimeMachine: Open Activity Graph | Inspect project events and saved changes |
+| TimeMachine: Search Command History | Find and copy a recorded command |
+| TimeMachine: Start Coding Timer | Start a My coding session |
+| TimeMachine: Start AI-Assisted Timer | Start an AI-assisted session |
+| TimeMachine: Pause Coding Timer | Stop recording focus time |
+| TimeMachine: Export Project Activity Report | Save a JSON or CSV report |
+| TimeMachine: Check Setup | Diagnose project and shell integration setup |
+
+## Privacy and practical limits
+
+TimeMachine stores its records in VS Code's extension storage. It does not upload your activity, add analytics, require an account, or create Git commits. Remote-workspace storage follows the extension host. [Read the data and privacy details](docs/privacy.md).
+
+- Up to **500 events** are retained across the workspace, with text snapshots for saved files up to **512 KiB**.
+- Focus-time totals are stored separately and survive timeline event pruning.
+- Restore updates the editor buffer; review and save it yourself.
+- Timers count focused window time, including reading or thinking, rather than keyboard activity.
+- Reports are local exports; importing reports as a timeline backup is not supported.
+
+## Frequently asked questions
+
+**Does TimeMachine automatically track AI coding?**
+
+You select My coding or AI-assisted. It tracks the time spent in the mode you choose while VS Code is focused; it does not analyze edits or connect to an AI provider.
+
+**Why are my commands missing?**
+
+Use a new integrated terminal inside an open project. Run **TimeMachine: Check Setup** and check [terminal shell integration troubleshooting](docs/troubleshooting.md).
+
+**Does this replace Git?**
+
+TimeMachine records local activity and available saved-file snapshots. It does not create commits, import Git history, or provide a backup service.
+
+**Can I clear my recorded history?**
+
+The graph offers confirmed deletion for an event, a project's commands, or all activity and time totals for that project. Project source files are not deleted.
+
+**Is it open source?**
+
+The repository is public, and the unmodified extension is free to use. Modification and redistribution require permission under the [source license](LICENSE).
+
+## Support and development
+
+[Report a bug or request a feature](https://github.com/TusharAnand303/timemachine_vscode/issues/new/choose) · [Troubleshooting](docs/troubleshooting.md) · [Development guide](docs/development.md) · [Changelog](CHANGELOG.md) · [Publishing](PUBLISHING.md)

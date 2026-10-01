@@ -1,12 +1,22 @@
-# Publish TimeMachine to the VS Code Marketplace
+# Publish TimeMachine 1.5.0
 
-The extension ID is `itstushar.timemachine`. The `publisher` field in `package.json` matches the existing Marketplace publisher ID `itstushar`. The current release version is `1.1.0`.
+The extension ID remains `itstushar.timemachine`. The new display name is **TimeMachine - Coding Time & Command History**. This repository prepares the VSIX and listing assets; packaging does not publish them.
 
-1. Sign in with the Microsoft account that owns `itstushar` at the [Marketplace publisher management page](https://marketplace.visualstudio.com/manage/publishers/). Select the **Tushar Anand (itstushar)** publisher.
-2. Install Node.js 22 or newer. From this repository, run `npm install`, `npm test`, and `npm run vsix`. The last command creates `timemachine-1.1.0.vsix` in the repository root.
-3. Test the VSIX in normal VS Code: open Extensions, select the `…` menu, choose **Install from VSIX**, and select the generated file. Reload VS Code, open a project, and follow the example in `README.md`.
-4. In the [publisher management page](https://marketplace.visualstudio.com/manage/publishers/), use **Add extension → Visual Studio Code** to upload the VSIX. Confirm the listing, icon, description, and version before submitting.
+## Prepare the release
 
-You can also publish with `vsce publish`, but that requires Azure DevOps Marketplace credentials. Manual VSIX upload is simpler for the first release. Never commit a personal access token or paste one into an issue or chat.
+1. Use Node.js 22 or newer. Run `npm install`, `npm test`, and `node scripts/check-release.mjs`.
+2. Run `npm run vsix` to create `releases/timemachine-1.5.0.vsix`.
+3. Install the VSIX in normal VS Code through **Extensions → … → Install from VSIX**. Check sidebar time ranges, mode switching, command copy, saved-change comparison, and JSON/CSV export.
+4. Commit and push source, documentation, and `media/screenshots/` to the default branch before Marketplace upload. The packaged README rewrites relative image and documentation URLs to the GitHub repository.
 
-For later releases, update `version` in `package.json` to a higher SemVer number, update `CHANGELOG.md`, run the tests and `npm run vsix`, then upload the new VSIX. A version already published cannot be reused for another upload.
+## Update the Marketplace listing
+
+Sign in to [Marketplace publisher management](https://marketplace.visualstudio.com/manage/publishers/) with the account managing publisher `itstushar`. Update the existing TimeMachine item with the new VSIX; if the item has never been published, add a Visual Studio Code extension under that publisher. Confirm the rendered title, description, screenshots, preview status, and version before submitting.
+
+The VSIX contains the optimized listing metadata from `package.json` and the product README. After upload, check the public page for `itstushar.timemachine` and verify it displays version 1.5.0 before announcing the release. [Official publishing guidance](https://code.visualstudio.com/api/working-with-extensions/publishing-extension).
+
+## Prepare GitHub discovery
+
+Use `marketing/github-metadata.json` for About text, topics, and the Marketplace homepage link. Upload `marketing/github-social-preview.png` in repository **Settings → Social preview**. Use `marketing/release-1.5.0.md` as the release body and attach the generated VSIX to the matching source revision. The complete sequence and measurement plan are in [the launch kit](marketing/launch-plan.md).
+
+For later releases, bump the package and lockfile versions, update the changelog, VSIX output name, documentation, and release draft, then recheck and package. Marketplace versions cannot be reused for a different uploaded build.

@@ -1,8 +1,8 @@
 {
   "name": "timemachine",
-  "displayName": "TimeMachine",
-  "description": "A local timeline of file saves, terminal commands, and failures between Git commits.",
-  "version": "1.1.0",
+  "displayName": "TimeMachine - Coding Time & Command History",
+  "description": "Track coding time, label AI-assisted sessions, search terminal command history, compare file saves, and export local project activity reports in VS Code.",
+  "version": "1.5.0",
   "publisher": "itstushar",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -17,26 +17,37 @@
     "theme": "dark"
   },
   "keywords": [
-    "timeline",
-    "history",
-    "session",
+    "coding time",
+    "time tracking",
+    "command history",
+    "terminal history",
+    "local history",
+    "activity timeline",
+    "file snapshots",
+    "ai-assisted coding",
+    "developer productivity",
+    "focus time",
     "file changes",
-    "terminal",
     "test failures",
-    "restore"
+    "debugging",
+    "restore",
+    "privacy",
+    "offline"
   ],
   "preview": true,
   "engines": {
     "vscode": "^1.93.0"
   },
   "categories": [
-    "Other",
-    "Testing"
+    "Visualization",
+    "Testing",
+    "Other"
   ],
   "activationEvents": [
     "onStartupFinished",
     "onView:timemachine.timeline",
-    "onCommand:timemachine.openTimeline"
+    "onCommand:timemachine.openTimeline",
+    "onView:timemachine.focus"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -52,19 +63,59 @@
     "views": {
       "timemachine": [
         {
+          "id": "timemachine.focus",
+          "name": "Coding Time",
+          "type": "webview"
+        },
+        {
           "id": "timemachine.timeline",
-          "name": "Timeline"
+          "name": "Project Timeline"
+        },
+        {
+          "id": "timemachine.folders",
+          "name": "Project Folders"
         }
       ]
     },
     "commands": [
       {
         "command": "timemachine.openTimeline",
-        "title": "TimeMachine: Open Timeline"
+        "title": "TimeMachine: Open Activity Graph"
+      },
+      {
+        "command": "timemachine.openGraph",
+        "title": "TimeMachine: Open Activity Graph",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "timemachine.searchCommands",
+        "title": "TimeMachine: Search Command History"
+      },
+      {
+        "command": "timemachine.startCoding",
+        "title": "TimeMachine: Start Coding Timer"
+      },
+      {
+        "command": "timemachine.startAi",
+        "title": "TimeMachine: Start AI-Assisted Timer"
+      },
+      {
+        "command": "timemachine.pauseTimer",
+        "title": "TimeMachine: Pause Coding Timer"
+      },
+      {
+        "command": "timemachine.showInGraph",
+        "title": "TimeMachine: Show in Activity Graph",
+        "icon": "$(type-hierarchy)"
       },
       {
         "command": "timemachine.showStatus",
         "title": "TimeMachine: Check Setup"
+      },
+      {
+        "command": "timemachine.refresh",
+        "title": "TimeMachine: Refresh",
+        "icon": "$(refresh)"
       },
       {
         "command": "timemachine.viewChange",
@@ -77,10 +128,19 @@
       {
         "command": "timemachine.restore",
         "title": "TimeMachine: Restore Before Change"
+      },
+      {
+        "command": "timemachine.exportReport",
+        "title": "TimeMachine: Export Project Activity Report",
+        "icon": "$(export)"
       }
     ],
     "menus": {
       "commandPalette": [
+        {
+          "command": "timemachine.openGraph",
+          "when": "false"
+        },
         {
           "command": "timemachine.viewChange",
           "when": "false"
@@ -91,6 +151,10 @@
         },
         {
           "command": "timemachine.restore",
+          "when": "false"
+        },
+        {
+          "command": "timemachine.showInGraph",
           "when": "false"
         }
       ],
@@ -109,6 +173,28 @@
           "command": "timemachine.restore",
           "when": "view == timemachine.timeline && viewItem == save",
           "group": "navigation@3"
+        },
+        {
+          "command": "timemachine.showInGraph",
+          "when": "view == timemachine.timeline && viewItem =~ /event|save/",
+          "group": "inline@4"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "timemachine.openGraph",
+          "when": "view == timemachine.timeline",
+          "group": "navigation@1"
+        },
+        {
+          "command": "timemachine.refresh",
+          "when": "view == timemachine.timeline || view == timemachine.folders",
+          "group": "navigation"
+        },
+        {
+          "command": "timemachine.exportReport",
+          "when": "view == timemachine.timeline",
+          "group": "navigation@2"
         }
       ]
     }
@@ -125,8 +211,8 @@
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "test:unit": "npm run compile-tests && mocha --ui tdd out/test/timeline.test.js out/test/storage.test.js",
-    "vsix": "vsce package",
+    "test:unit": "npm run compile-tests && mocha --ui tdd out/test/timeline.test.js out/test/storage.test.js out/test/report.test.js",
+    "vsix": "vsce package --out releases/timemachine-1.5.0.vsix",
     "test": "vscode-test"
   },
   "dependencies": {
@@ -148,5 +234,10 @@
   "overrides": {
     "diff": "^8.0.4",
     "serialize-javascript": "^7.0.6"
-  }
+  },
+  "pricing": "Free",
+  "author": {
+    "name": "Tushar Anand"
+  },
+  "qna": "https://github.com/TusharAnand303/timemachine_vscode/issues"
 }

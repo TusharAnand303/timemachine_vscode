@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible TimeMachine issue.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: Please use an example project and remove private commands, paths, and source code from logs.
+  - type: input
+    id: versions
+    attributes:
+      label: Versions and environment
+      description: TimeMachine version, VS Code version, operating system, and whether the workspace is remote.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the view or command you used and a minimal example.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup details or screenshots
+      description: For command tracking, run TimeMachine Check Setup and include shell integration status after removing private information.

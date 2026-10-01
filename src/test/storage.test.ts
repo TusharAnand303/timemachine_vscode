@@ -28,4 +28,25 @@ suite('TimeMachine storage', () => {
 			await fs.rm(directory, { recursive: true, force: true });
 		}
 	});
+
+	test('removes commands with readiness events and deletes only selected snapshots', async () => {
+		const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'timemachine-delete-'));
+		try {
+			const store = new TimelineStore({ fsPath: directory } as vscode.Uri);
+			await store.load();
+			const save: SaveEvent = { kind: 'save', id: 'save-a', at: 1, folderUri: 'project-a', uri: 'file:///project-a/file.ts', name: 'file.ts' };
+			await store.add(save, { before: 'old', after: 'new' });
+			await store.add({ kind: 'command', id: 'command-a', at: 2, folderUri: 'project-a', command: 'npm test', terminal: 'a', status: 'passed' });
+			await store.add({ kind: 'ready', id: 'ready-a', at: 3, folderUri: 'project-a', commandId: 'command-a', terminal: 'a' });
+			await store.add({ kind: 'command', id: 'command-b', at: 4, folderUri: 'project-b', command: 'npm run build', terminal: 'b', status: 'passed' });
+			assert.equal(await store.removeIds(new Set(['command-a'])), 2);
+			assert.deepEqual(store.all.map(event => event.id), ['save-a', 'command-b']);
+			assert.equal(await store.snapshot(save, 'before'), 'old');
+			assert.equal(await store.removeIds(new Set(['save-a'])), 1);
+			await assert.rejects(store.snapshot(save, 'before'));
+			assert.deepEqual(store.all.map(event => event.id), ['command-b']);
+		} finally {
+			await fs.rm(directory, { recursive: true, force: true });
+		}
+	});
 });
