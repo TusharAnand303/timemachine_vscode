@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { changesSinceLastPass, SaveEvent, TimelineEvent } from './timeline';
+import { changesSinceLastPass, checkKind, lastKnownGood, SaveEvent, TimelineEvent } from './timeline';
 import { TimelineStore } from './storage';
 
 export type TimelineNode =
@@ -122,13 +122,20 @@ export class TimelineView implements vscode.TreeDataProvider<TimelineNode> {
 			label = `${event.name} saved`; description = saveSummary(event); icon = 'save';
 		} else if (event.kind === 'ready') {
 			label = 'Server ready'; description = event.terminal; icon = 'server';
+		} else if (event.kind === 'file') {
+			label = `${event.name} ${event.change}`; description = event.oldName ? `from ${event.oldName}` : 'file operation'; icon = event.change === 'deleted' ? 'trash' : event.change === 'renamed' ? 'arrow-swap' : 'new-file';
+		} else if (event.kind === 'branch') {
+			label = `Branch ${event.from} → ${event.to}`; description = event.commit ?? 'Git branch changed'; icon = 'git-branch';
+		} else if (event.kind === 'checkpoint') {
+			label = `Checkpoint: ${event.name}`; description = `${event.files.length} files`; icon = 'bookmark';
 		} else {
 			label = event.command;
 			icon = event.status === 'failed' ? 'error' : event.status === 'passed' ? 'pass' : event.status === 'running' ? 'loading~spin' : 'terminal';
 			const location = event.cwd ? vscode.Uri.parse(event.cwd) : node.folder.uri;
 			const relative = path.relative(node.folder.uri.fsPath, location.fsPath);
 			const directory = relative && !relative.startsWith('..') ? relative : node.folder.name;
-			description = `${event.status}${event.exitCode !== undefined && event.exitCode !== 0 ? ` (${event.exitCode})` : ''} · ${directory}${event.cwdInferred ? ' (assumed)' : ''}`;
+			const good = event.status === 'passed' && (event.check ?? checkKind(event.command)) && lastKnownGood(this.projectEvents(node.folder), event.folderUri)?.id === event.id;
+			description = `${event.status}${good ? ' · LAST KNOWN GOOD' : ''}${event.exitCode !== undefined && event.exitCode !== 0 ? ` (${event.exitCode})` : ''} · ${directory}${event.cwdInferred ? ' (assumed)' : ''}`;
 		}
 		const related = event.kind === 'command' && event.status === 'failed' ? changesSinceLastPass([...this.store.all], event) : [];
 		const item = new vscode.TreeItem(`${time(event.at)}  ${label}`, related.length ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None);
@@ -137,9 +144,9 @@ export class TimelineView implements vscode.TreeDataProvider<TimelineNode> {
 		item.iconPath = new vscode.ThemeIcon(icon);
 		item.tooltip = event.kind === 'save' ? `${event.uri}\n${description}` : event.kind === 'command' ? `${event.command}\n${description}\nTerminal: ${event.terminal}` : `${label}\n${node.folder.uri.fsPath}`;
 		item.contextValue = 'event';
-		if (event.kind === 'opened' || event.kind === 'ready') {
+		if (event.kind !== 'save') {
 			item.command = { command: 'timemachine.showInGraph', title: 'Show Event Details', arguments: [node] };
-			item.tooltip = `${label}\nProject folder: ${node.folder.uri.fsPath}\n${description}\nRecorded: ${new Date(event.at).toLocaleString()}`;
+			if (event.kind === 'opened' || event.kind === 'ready') { item.tooltip = `${label}\nProject folder: ${node.folder.uri.fsPath}\n${description}\nRecorded: ${new Date(event.at).toLocaleString()}`; }
 		}
 		if (event.kind === 'save') {
 			item.contextValue = event.before && event.after ? 'save' : 'saveUnavailable';

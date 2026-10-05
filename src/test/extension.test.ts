@@ -33,7 +33,7 @@ suite('TimeMachine extension', () => {
 		await vscode.commands.executeCommand('timemachine.focus.focus');
 		assert.equal((await vscode.commands.executeCommand<SetupStatus>('timemachine.showStatus')).projects[0].name, vscode.workspace.workspaceFolders[0].name);
 		const commands = await vscode.commands.getCommands(true);
-		for (const command of ['timemachine.openGraph', 'timemachine.showInGraph', 'timemachine.openFile', 'timemachine.viewChange', 'timemachine.compare', 'timemachine.restore', 'timemachine.exportReport']) {
+		for (const command of ['timemachine.openGraph', 'timemachine.showInGraph', 'timemachine.openFile', 'timemachine.viewChange', 'timemachine.compare', 'timemachine.restore', 'timemachine.exportReport', 'timemachine.whatChanged', 'timemachine.createCheckpoint', 'timemachine.compareWithCheckpoint', 'timemachine.showSessionSummary']) {
 			assert.ok(commands.includes(command), `${command} was not registered`);
 		}
 	});
@@ -158,20 +158,55 @@ suite('TimeMachine extension', () => {
 			terminal.show();
 			await waitFor(async () => !!terminal.shellIntegration, 15000);
 			const before = (await vscode.commands.executeCommand<SetupStatus>('timemachine.showStatus')).recordedEvents;
-			const execution = terminal.shellIntegration!.executeCommand('echo timemachine-test');
+			const execution = terminal.shellIntegration!.executeCommand('pwd');
 			await new Promise<void>((resolve, reject) => {
 				const timer = setTimeout(() => { listener.dispose(); reject(new Error('Terminal command did not finish')); }, 10000);
 				const listener = vscode.window.onDidEndTerminalShellExecution(event => {
 					if (event.execution === execution) { clearTimeout(timer); listener.dispose(); resolve(); }
 				});
 			});
-			await waitFor(async () => (await vscode.commands.executeCommand<SetupStatus>('timemachine.showStatus')).projects[0].recentCommands.some(item => item.command === 'echo timemachine-test'));
+			await waitFor(async () => (await vscode.commands.executeCommand<SetupStatus>('timemachine.showStatus')).projects[0].recentCommands.some(item => item.command === 'pwd'));
 			const details = await vscode.commands.executeCommand<SetupStatus>('timemachine.showStatus');
 			assert.ok(details.recordedEvents > before);
-			assert.ok(details.projects[0].recentCommands.some(item => item.command === 'echo timemachine-test' && item.cwd === folder.uri.toString()));
+			assert.ok(details.projects[0].recentCommands.some(item => item.command === 'pwd' && item.cwd === folder.uri.toString()));
 		} finally {
 			terminal.dispose();
 		}
+	});
+
+	test('reports saved changes between a passing and failing test run', async function () {
+		this.timeout(45000);
+		const folder = vscode.workspace.workspaceFolders![0];
+		const directory = path.join(folder.uri.fsPath, 'timemachine-flight-test');
+		await fs.mkdir(directory);
+		await fs.writeFile(path.join(directory, 'package.json'), JSON.stringify({ private: true, scripts: { test: 'node test.js' } }));
+		const file = vscode.Uri.file(path.join(directory, 'test.js'));
+		await vscode.workspace.fs.writeFile(file, Buffer.from('process.exit(0);\n'));
+		const terminal = vscode.window.createTerminal({ name: 'TimeMachine Pass Fail', cwd: folder.uri.fsPath });
+		try {
+			terminal.show();
+			await waitFor(async () => !!terminal.shellIntegration, 15000);
+			const command = 'npm test --prefix timemachine-flight-test';
+			const run = async (expected: string): Promise<void> => {
+				const execution = terminal.shellIntegration!.executeCommand(command);
+				await new Promise<void>((resolve, reject) => {
+					const timer = setTimeout(() => { listener.dispose(); reject(new Error('Test command did not finish')); }, 15000);
+					const listener = vscode.window.onDidEndTerminalShellExecution(event => {
+						if (event.execution === execution) { clearTimeout(timer); listener.dispose(); resolve(); }
+					});
+				});
+				await waitFor(async () => (await vscode.commands.executeCommand<SetupStatus>('timemachine.showStatus')).projects[0].recentCommands.some(item => item.command === command && item.status === expected));
+			};
+			await run('passed');
+			const document = await vscode.workspace.openTextDocument(file);
+			const editor = await vscode.window.showTextDocument(document);
+			await editor.edit(edit => edit.replace(new vscode.Range(0, 0, 0, 16), 'process.exit(1);'));
+			assert.equal(await document.save(), true);
+			await run('failed');
+			await vscode.commands.executeCommand('timemachine.whatChanged');
+			assert.match(vscode.window.activeTextEditor?.document.getText() ?? '', /Last Known Good/);
+			assert.match(vscode.window.activeTextEditor?.document.getText() ?? '', /timemachine-flight-test\/test\.js/);
+		} finally { terminal.dispose(); await fs.rm(directory, { recursive: true, force: true }); }
 	});
 
 	test('does not associate a command outside the open project', async function () {
@@ -180,7 +215,7 @@ suite('TimeMachine extension', () => {
 		try {
 			terminal.show();
 			await waitFor(async () => !!terminal.shellIntegration, 15000);
-			const execution = terminal.shellIntegration!.executeCommand('echo timemachine-outside');
+			const execution = terminal.shellIntegration!.executeCommand('pwd -P');
 			await new Promise<void>((resolve, reject) => {
 				const timer = setTimeout(() => { listener.dispose(); reject(new Error('Outside command did not finish')); }, 10000);
 				const listener = vscode.window.onDidEndTerminalShellExecution(event => {
@@ -188,7 +223,7 @@ suite('TimeMachine extension', () => {
 				});
 			});
 			const details = await vscode.commands.executeCommand<SetupStatus>('timemachine.showStatus');
-			assert.ok(details.projects.every(project => project.recentCommands.every(item => item.command !== 'echo timemachine-outside')));
+			assert.ok(details.projects.every(project => project.recentCommands.every(item => item.command !== 'pwd -P')));
 		} finally {
 			terminal.dispose();
 		}

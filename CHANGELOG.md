@@ -1,5 +1,12 @@
 # Change Log
 
+## 1.6.0
+
+- Detect passing and failing test/build runs, retain the latest successful run, and offer a What Changed? report after a pass-to-fail transition.
+- Rank recorded file and command activity between those runs, including dependency installs, configuration changes, and Git branch changes.
+- Add local source checkpoints with built-in diffs and a session summary command.
+- Redact common terminal credentials, avoid sensitive and generated files, and improve timeline readability.
+
 ## 1.5.0
 
 - Add Today, 7 days, and All time summaries plus a daily focus-time breakdown in the sidebar.

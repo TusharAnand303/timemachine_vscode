@@ -1,6 +1,6 @@
-# TimeMachine: coding time and command history for VS Code
+# TimeMachine — Your project's flight recorder
 
-Track your coding time, revisit terminal commands, and inspect saved file changes in one local project timeline.
+See what happened between a passing test or build and a later failure. TimeMachine also keeps local command history, file saves, checkpoints, and coding time in one project timeline.
 
 [Install from the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=itstushar.timemachine) · [Getting started](docs/getting-started.md) · [Report a bug](https://github.com/TusharAnand303/timemachine_vscode/issues/new/choose)
 
@@ -30,9 +30,13 @@ Commands must run in a shell-integrated terminal inside an open project. Start a
 
 ## Inspect the changes before a failure
 
+Run a test or build such as `npm test`, `npm run build`, `pytest`, `phpunit`, or `go test` in a shell-integrated terminal. A successful run becomes **Last Known Good**. If a later run of the same command fails, TimeMachine offers **What Changed?** and **Open Timeline**. The report ranks recorded file saves and file operations, counts saves per file, and shows terminal commands, dependency installs, configuration and lockfile changes, and Git branch changes between the two runs.
+
 Select a failed command to see files saved since the previous passing run of that command in the same project. Compare available before/after snapshots or restore an earlier version into the editor for review. Without an earlier passing run, TimeMachine suggests the latest preceding save.
 
 Dashed links are timing clues, rather than proof of the cause. [Try the repeatable failure example](docs/failure-investigation.md).
+
+Use **TimeMachine: Create Checkpoint** to save up to 200 eligible source files locally, then **TimeMachine: Compare With Checkpoint** to open a built-in VS Code diff for a chosen file. **TimeMachine: Show Session Summary** reports activity since this extension session started, including tests/builds, passes/failures, checkpoints, current branch, and the latest Last Known Good.
 
 ## Project context and local activity reports
 
@@ -42,11 +46,11 @@ Export the selected project's retained activity and daily coding totals as **JSO
 
 ## Get started in three steps
 
-1. Install **TimeMachine - Coding Time & Command History**, open a project folder, and select the TimeMachine clock in the Activity Bar.
+1. Install **TimeMachine**, open a project folder, and select the TimeMachine clock in the Activity Bar.
 2. In **Coding Time**, select **My coding** or **AI-assisted**. Save a text file and run a command in a new integrated terminal inside the project.
 3. Select the graph icon above **Project Timeline** to inspect activity. Use **Command history** to find past runs or **Export report** to save your project report.
 
-To install the local release, open **Extensions → … → Install from VSIX**, choose `releases/timemachine-1.5.0.vsix`, and reload VS Code. [Detailed setup](docs/getting-started.md).
+To install the local release, open **Extensions → … → Install from VSIX**, choose `releases/timemachine-1.6.0.vsix`, and reload VS Code. [Detailed setup](docs/getting-started.md).
 
 ## Useful commands
 
@@ -54,6 +58,10 @@ To install the local release, open **Extensions → … → Install from VSIX**,
 | --- | --- |
 | TimeMachine: Open Activity Graph | Inspect project events and saved changes |
 | TimeMachine: Search Command History | Find and copy a recorded command |
+| TimeMachine: What Changed? | Compare the latest failed check with its previous pass |
+| TimeMachine: Create Checkpoint | Save a bounded local source snapshot |
+| TimeMachine: Compare With Checkpoint | Diff a checkpoint file against its current version |
+| TimeMachine: Show Session Summary | Review this extension session |
 | TimeMachine: Start Coding Timer | Start a My coding session |
 | TimeMachine: Start AI-Assisted Timer | Start an AI-assisted session |
 | TimeMachine: Pause Coding Timer | Stop recording focus time |
@@ -64,7 +72,8 @@ To install the local release, open **Extensions → … → Install from VSIX**,
 
 TimeMachine stores its records in VS Code's extension storage. It does not upload your activity, add analytics, require an account, or create Git commits. Remote-workspace storage follows the extension host. [Read the data and privacy details](docs/privacy.md).
 
-- Up to **500 events** are retained across the workspace, with text snapshots for saved files up to **512 KiB**.
+- Up to **500 events** are retained across the workspace, with text snapshots for saved files up to **512 KiB**. The latest successful check for each recorded command is favored during pruning.
+- Checkpoints capture up to **200 files**, each at most **64 KiB**, with a **2 MiB** total limit. They include saved disk contents.
 - Focus-time totals are stored separately and survive timeline event pruning.
 - Restore updates the editor buffer; review and save it yourself.
 - Timers count focused window time, including reading or thinking, rather than keyboard activity.

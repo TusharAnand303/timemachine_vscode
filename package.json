@@ -1,8 +1,8 @@
 {
   "name": "timemachine",
-  "displayName": "TimeMachine - Coding Time & Command History",
-  "description": "Track coding time, label AI-assisted sessions, search terminal command history, compare file saves, and export local project activity reports in VS Code.",
-  "version": "1.5.0",
+  "displayName": "TimeMachine — Your project's flight recorder",
+  "description": "Record local project activity between passing and failing test runs, with file saves, terminal commands, checkpoints, and coding time.",
+  "version": "1.6.0",
   "publisher": "itstushar",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -90,6 +90,22 @@
       {
         "command": "timemachine.searchCommands",
         "title": "TimeMachine: Search Command History"
+      },
+      {
+        "command": "timemachine.whatChanged",
+        "title": "TimeMachine: What Changed?"
+      },
+      {
+        "command": "timemachine.createCheckpoint",
+        "title": "TimeMachine: Create Checkpoint"
+      },
+      {
+        "command": "timemachine.compareWithCheckpoint",
+        "title": "TimeMachine: Compare With Checkpoint"
+      },
+      {
+        "command": "timemachine.showSessionSummary",
+        "title": "TimeMachine: Show Session Summary"
       },
       {
         "command": "timemachine.startCoding",
@@ -212,7 +228,7 @@
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
     "test:unit": "npm run compile-tests && mocha --ui tdd out/test/timeline.test.js out/test/storage.test.js out/test/report.test.js",
-    "vsix": "vsce package --out releases/timemachine-1.5.0.vsix",
+    "vsix": "vsce package --out releases/timemachine-1.6.0.vsix",
     "test": "vscode-test"
   },
   "dependencies": {

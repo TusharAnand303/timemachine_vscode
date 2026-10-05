@@ -10,7 +10,7 @@ npm test
 npm run vsix
 ```
 
-The full test suite opens a VS Code extension host. To reuse an already downloaded compatible version, pass `npm test -- --code-version 1.139.1`. `npm run vsix` runs the production type and lint checks, bundles the extension, and creates `releases/timemachine-1.5.0.vsix`.
+The full test suite opens a VS Code extension host. To reuse an already downloaded compatible version, pass `npm test -- --code-version 1.139.1`. `npm run vsix` runs the production type and lint checks, bundles the extension, and creates `releases/timemachine-1.6.0.vsix`.
 
 Open this repository in VS Code and choose **Run → Run Without Debugging** to open an Extension Development Host with the repository as its workspace. On macOS, use the menu if F5 is assigned to Dictation. Select the TimeMachine icon and expand Coding Time and Project Timeline.
 

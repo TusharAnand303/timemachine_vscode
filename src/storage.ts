@@ -1,7 +1,8 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { CommandEvent, SaveEvent, TimelineEvent } from './timeline';
+import { checkKind, CommandEvent, SaveEvent, TimelineEvent } from './timeline';
+import { redactCommand } from './privacy';
 
 const maximumEvents = 500;
 
@@ -22,6 +23,14 @@ export class TimelineStore {
 			const parsed: unknown = JSON.parse(await fs.readFile(this.timelinePath, 'utf8'));
 			if (Array.isArray(parsed)) {
 				this.events = parsed.filter((event): event is TimelineEvent => typeof event === 'object' && event !== null && typeof event.id === 'string' && typeof event.kind === 'string' && typeof event.at === 'number').slice(-maximumEvents);
+			let sanitized = false;
+			for (const event of this.events) {
+				if (event.kind === 'command') {
+					const safe = redactCommand(event.command);
+					if (safe !== event.command) { event.command = safe; sanitized = true; }
+				}
+			}
+			if (sanitized) { await this.persist(); }
 			}
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code !== 'ENOENT') { throw error; }
@@ -30,8 +39,20 @@ export class TimelineStore {
 
 	get all(): readonly TimelineEvent[] { return this.events; }
 
+	async associateLegacy(folderUri: string): Promise<void> {
+		this.writeQueue = this.writeQueue.catch(() => undefined).then(async () => {
+			let changed = false;
+			for (const event of this.events) {
+				if (!event.folderUri) { event.folderUri = folderUri; changed = true; }
+			}
+			if (changed) { await this.persist(); }
+		});
+		await this.writeQueue;
+	}
+
 	async add(event: TimelineEvent, snapshots?: { before: string; after: string }): Promise<void> {
 		this.writeQueue = this.writeQueue.catch(() => undefined).then(async () => {
+			if (event.kind === 'command') { event.command = redactCommand(event.command); }
 			if (snapshots && event.kind === 'save') {
 				const snapshotsDirectory = path.join(this.directory, 'snapshots');
 				await fs.mkdir(snapshotsDirectory, { recursive: true });
@@ -43,7 +64,18 @@ export class TimelineStore {
 				]);
 			}
 			this.events.push(event);
-			const removed = this.events.length > maximumEvents ? this.events.splice(0, this.events.length - maximumEvents) : [];
+			const removed: TimelineEvent[] = [];
+			while (this.events.length > maximumEvents) {
+				const latestGood = new Map<string, string>();
+				for (const item of this.events) {
+					if (item.kind === 'command' && item.status === 'passed' && (item.check ?? checkKind(item.command))) {
+						latestGood.set(`${item.folderUri ?? ''}\0${item.command}`, item.id);
+					}
+				}
+				const protectedIds = new Set(latestGood.values());
+				const index = this.events.findIndex(item => !protectedIds.has(item.id));
+				removed.push(...this.events.splice(index < 0 ? 0 : index, 1));
+			}
 			await this.persist();
 			for (const old of removed) {
 				if (old.kind === 'save') {
@@ -51,6 +83,7 @@ export class TimelineStore {
 						if (name) { await fs.rm(path.join(this.directory, 'snapshots', name), { force: true }); }
 					}
 				}
+				if (old.kind === 'checkpoint') { await this.deleteCheckpoint(old.id); }
 			}
 		});
 		await this.writeQueue;
@@ -61,7 +94,8 @@ export class TimelineStore {
 			const command = this.events.find((event): event is CommandEvent => event.kind === 'command' && event.id === id);
 			if (!command) { return; }
 			command.status = status;
-			if (commandLine?.trim()) { command.command = commandLine.trim(); }
+			if (commandLine?.trim()) { command.command = redactCommand(commandLine); }
+			command.check = checkKind(command.command);
 			command.exitCode = exitCode;
 			command.finishedAt = Date.now();
 			await this.persist();
@@ -79,6 +113,7 @@ export class TimelineStore {
 			count = removed.length;
 			await this.persist();
 			for (const event of removed) {
+				if (event.kind === 'checkpoint') { await this.deleteCheckpoint(event.id); }
 				if (event.kind !== 'save') { continue; }
 				for (const name of [event.before, event.after]) {
 					if (name) { await fs.rm(path.join(this.directory, 'snapshots', name), { force: true }); }
@@ -95,9 +130,33 @@ export class TimelineStore {
 		await fs.rename(temporary, this.timelinePath);
 	}
 
+	private async deleteCheckpoint(id: string): Promise<void> {
+		if (/^[A-Za-z0-9-]{1,100}$/.test(id)) { await fs.rm(path.join(this.directory, 'checkpoints', id), { recursive: true, force: true }); }
+	}
+
 	async snapshot(event: SaveEvent, side: 'before' | 'after'): Promise<string> {
 		const name = event[side];
 		if (!name || !this.events.some(item => item.id === event.id)) { throw new Error('Snapshot is unavailable'); }
 		return fs.readFile(path.join(this.directory, 'snapshots', name), 'utf8');
+	}
+
+	async saveCheckpoint(id: string, files: ReadonlyMap<string, string>): Promise<void> {
+		if (!/^[A-Za-z0-9-]{1,100}$/.test(id)) { throw new Error('Invalid checkpoint ID'); }
+		const directory = path.join(this.directory, 'checkpoints', id);
+		await fs.mkdir(directory, { recursive: true });
+		await Promise.all([...files].map(async ([name, content]) => {
+			const target = path.resolve(directory, name);
+			if (!target.startsWith(directory + path.sep)) { throw new Error('Invalid checkpoint path'); }
+			await fs.mkdir(path.dirname(target), { recursive: true });
+			await fs.writeFile(target, content, 'utf8');
+		}));
+	}
+
+	async checkpointFile(id: string, name: string): Promise<string> {
+		if (!/^[A-Za-z0-9-]{1,100}$/.test(id)) { throw new Error('Invalid checkpoint ID'); }
+		const directory = path.join(this.directory, 'checkpoints', id);
+		const target = path.resolve(directory, name);
+		if (!target.startsWith(directory + path.sep)) { throw new Error('Invalid checkpoint path'); }
+		return fs.readFile(target, 'utf8');
 	}
 }

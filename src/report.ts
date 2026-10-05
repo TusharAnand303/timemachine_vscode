@@ -35,7 +35,7 @@ export function reportCsv(report: ReturnType<typeof createProjectReport>): strin
 	}
 	for (const event of report.events) {
 		rows.push([event.kind, event.at, report.project.name, event.kind === 'command' ? event.cwd || report.project.path : report.project.path,
-			event.kind === 'command' ? event.command : event.kind === 'save' ? event.name : event.kind === 'opened' ? event.label : 'Server ready',
+			event.kind === 'command' ? event.command : event.kind === 'save' || event.kind === 'file' || event.kind === 'checkpoint' ? event.name : event.kind === 'branch' ? `${event.from} → ${event.to}` : event.kind === 'opened' ? event.label : 'Server ready',
 			event.kind === 'command' ? event.status : '', event.kind === 'command' ? event.exitCode : undefined, '', '',
 			event.kind === 'save' ? event.added : undefined, event.kind === 'save' ? event.removed : undefined]);
 	}

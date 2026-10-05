@@ -1,15 +1,19 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { changesSinceLastPass, TimelineEvent } from './timeline';
+import { changesSinceLastPass, checkKind, lastKnownGood, TimelineEvent, whatChanged } from './timeline';
 import { TimelineStore } from './storage';
 import { TimelineView } from './views';
 import { ActivityTracker, FocusMode } from './activityTracker';
+import { isDependencyInstall } from './privacy';
 
 type GraphEvent = TimelineEvent & {
 	directory: string;
 	relatedIds?: string[];
 	linkToId?: string;
 	hasPreviousPass?: boolean;
+	lastKnownGood?: boolean;
+	canInvestigate?: boolean;
+	dependencyInstall?: boolean;
 };
 
 function directoryFor(event: TimelineEvent, folder: vscode.WorkspaceFolder): string {
@@ -25,6 +29,7 @@ function directoryFor(event: TimelineEvent, folder: vscode.WorkspaceFolder): str
 
 export class GraphView implements vscode.Disposable {
 	private panel: vscode.WebviewPanel | undefined;
+	private panelSubscriptions: vscode.Disposable[] = [];
 
 	constructor(
 		private readonly extensionUri: vscode.Uri,
@@ -48,12 +53,15 @@ export class GraphView implements vscode.Disposable {
 		this.panel = panel;
 		panel.iconPath = vscode.Uri.joinPath(this.extensionUri, 'media', 'timemachine.svg');
 		panel.webview.html = this.html(panel.webview);
-		panel.onDidDispose(() => { this.panel = undefined; });
-		panel.webview.onDidReceiveMessage((message: unknown) => {
+		this.panelSubscriptions.push(panel.onDidDispose(() => {
+			this.panel = undefined;
+			for (const subscription of this.panelSubscriptions.splice(0)) { subscription.dispose(); }
+		}));
+		this.panelSubscriptions.push(panel.webview.onDidReceiveMessage((message: unknown) => {
 			void this.onMessage(message, eventId, section).catch(error => {
 				void vscode.window.showErrorMessage(`TimeMachine could not update history: ${String(error)}`);
 			});
-		});
+		}));
 	}
 
 	private async onMessage(message: unknown, initialEventId?: string, initialSection?: 'graph' | 'history'): Promise<void> {
@@ -81,7 +89,7 @@ export class GraphView implements vscode.Disposable {
 		}
 		if (data.type === 'clearProject' && folder) {
 			const ids = new Set(this.timeline.projectEvents(folder).map(event => event.id));
-			const answer = await vscode.window.showWarningMessage(`Delete all recorded activity and coding-time totals for ${folder.name}? Saved snapshots will be deleted.`, { modal: true }, 'Delete project history');
+			const answer = await vscode.window.showWarningMessage(`Delete all recorded activity and coding-time totals for ${folder.name}? Saved snapshots and checkpoints will be deleted.`, { modal: true }, 'Delete project history');
 			if (answer !== 'Delete project history') { return; }
 			await this.store.removeIds(ids);
 			await this.tracker.clearProject(folder.uri.toString());
@@ -104,7 +112,7 @@ export class GraphView implements vscode.Disposable {
 			return;
 		}
 		if (data.type === 'deleteEvent') {
-			const name = event.kind === 'command' ? event.command : event.kind === 'save' ? event.name : event.kind === 'ready' ? 'server-ready event' : 'project-open event';
+			const name = event.kind === 'command' ? event.command : event.kind === 'save' || event.kind === 'file' || event.kind === 'checkpoint' ? event.name : event.kind === 'branch' ? `${event.from} → ${event.to}` : event.kind === 'ready' ? 'server-ready event' : 'project-open event';
 			const answer = await vscode.window.showWarningMessage(`Delete this recorded ${event.kind} event? ${name}`, { modal: true }, 'Delete event');
 			if (answer !== 'Delete event') { return; }
 			await this.store.removeIds(new Set([event.id]));
@@ -112,6 +120,8 @@ export class GraphView implements vscode.Disposable {
 			return;
 		}
 		const actions: Record<string, string> = {
+			whatChanged: 'timemachine.whatChanged',
+			compareCheckpoint: 'timemachine.compareWithCheckpoint',
 			compare: 'timemachine.compare',
 			restore: 'timemachine.restore',
 			view: 'timemachine.viewChange',
@@ -125,11 +135,16 @@ export class GraphView implements vscode.Disposable {
 		if (!this.panel) { return; }
 		const projects = (vscode.workspace.workspaceFolders ?? []).map(folder => {
 			const events = this.timeline.projectEvents(folder);
+			const latestGood = lastKnownGood(events, folder.uri.toString());
 			const graphEvents: GraphEvent[] = events.map(event => ({
 				...event,
 				directory: directoryFor(event, folder),
+				...(event.kind === 'command' ? { check: event.check ?? checkKind(event.command) } : {}),
+				...(event.id === latestGood?.id ? { lastKnownGood: true } : {}),
+				...(event.kind === 'command' && isDependencyInstall(event.command) ? { dependencyInstall: true } : {}),
 				...(event.kind === 'command' && event.status === 'failed'
 					? {
+					canInvestigate: !!whatChanged(events, event),
 					relatedIds: changesSinceLastPass(events, event).map(save => save.id),
 					hasPreviousPass: events.some(item => item.kind === 'command' && item.command === event.command && item.status === 'passed' && (item.finishedAt ?? item.at) < event.at),
 				} : {}),
@@ -140,7 +155,10 @@ export class GraphView implements vscode.Disposable {
 		void this.panel.webview.postMessage({ type: 'data', projects, revealId, section });
 	}
 
-	dispose(): void { this.panel?.dispose(); }
+	dispose(): void {
+		this.panel?.dispose();
+		for (const subscription of this.panelSubscriptions.splice(0)) { subscription.dispose(); }
+	}
 
 	private html(webview: vscode.Webview): string {
 		const css = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'graph.css'));
@@ -151,10 +169,10 @@ export class GraphView implements vscode.Disposable {
 <title>TimeMachine Activity Graph</title><link rel="stylesheet" href="${css}"></head>
 <body>
 <div class="app">
-  <header class="topbar"><div class="brand"><span class="brand-mark">◷</span><span>TimeMachine</span><span class="brand-version">1.5.0</span></div><div class="top-actions"><span class="live-dot"></span><span>Local activity</span><button id="refresh" class="icon-button" type="button" title="Refresh activity" aria-label="Refresh activity">↻</button></div></header>
+  <header class="topbar"><div class="brand"><span class="brand-mark">◷</span><span>TimeMachine</span><span class="brand-version">1.6.0</span></div><div class="top-actions"><span class="live-dot"></span><span>Local activity</span><button id="refresh" class="icon-button" type="button" title="Refresh activity" aria-label="Refresh activity">↻</button></div></header>
   <div class="content">
     <main class="main">
-      <section class="hero"><div class="eyebrow">TIMEMACHINE</div><h1>Project activity</h1><p>A local timeline of project openings, saved files, and integrated terminal commands.</p></section>
+	      <section class="hero"><div class="eyebrow">TIMEMACHINE</div><h1>Your project's flight recorder</h1><p>See what changed between passing and failing runs, alongside saved files and terminal commands.</p></section>
       <section class="project-bar" aria-label="Current project"><div class="project-heading"><span class="project-symbol" aria-hidden="true">⌁</span><div><div class="field-label">PROJECT FOLDER</div><select id="project" aria-label="Project folder"></select></div></div><div class="project-context"><div id="project-path" class="project-path"></div><div id="project-summary" class="project-summary"></div><div class="project-actions"><button id="reveal-project" type="button">Show in Explorer</button><button id="copy-project-path" type="button">Copy path</button><button id="export-report" type="button">Export report</button><span id="project-feedback" class="project-feedback" role="status" aria-live="polite"></span></div></div></section>
       <section id="stats" class="stats" aria-label="Activity summary"></section>
 

@@ -94,6 +94,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .edge-ready { fill: none; stroke: var(--mint); stroke-opacity: .7; stroke-width: 1.6; stroke-dasharray: 5 5; }
 #nodes { position: relative; z-index: 1; }
 .date-divider { position: relative; display: inline-block; color: var(--muted); background: var(--bg); font-size: 10px; font-weight: 620; padding: 6px 9px; margin: 10px 0 7px; border: 1px solid var(--border); border-radius: 20px; }
+.session-divider { color: var(--muted); font-size: 10px; letter-spacing: .6px; text-transform: uppercase; border-top: 1px dashed var(--border); padding: 8px 0 3px; margin: 5px 0 12px; }
 .event-row { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0 0 14px; min-height: 82px; }
 .node { position: relative; display: block; min-width: 0; width: 100%; text-align: left; padding: 11px 12px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: var(--fg); box-shadow: 0 4px 15px rgba(0, 0, 0, .05); transition: border-color .16s, transform .16s, box-shadow .16s; }
 .node:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 48%, var(--border)); box-shadow: 0 7px 22px rgba(0, 0, 0, .13); }

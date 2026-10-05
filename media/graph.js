@@ -16,16 +16,19 @@
   const time = at => new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const day = at => new Date(at).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
   const project = () => state.projects.find(item => item.id === state.projectId) || state.projects[0];
-  const label = event => event.kind === 'save' ? event.name : event.kind === 'command' ? event.command : event.kind === 'ready' ? 'Server ready' : `Opened ${project()?.name || event.directory}`;
-  const kindLabel = event => event.kind === 'save' ? 'FILE SAVED' : event.kind === 'command' ? 'COMMAND' : event.kind === 'ready' ? 'SERVER READY' : 'PROJECT OPENED';
-  const symbol = event => event.kind === 'save' ? '◇' : event.kind === 'command' ? '›_' : event.kind === 'ready' ? '◉' : '⌁';
+  const label = event => event.kind === 'save' ? `${event.name} saved` : event.kind === 'command' ? event.command : event.kind === 'file' ? `${event.name} ${event.change}` : event.kind === 'branch' ? `Branch ${event.from} → ${event.to}` : event.kind === 'checkpoint' ? `Checkpoint: ${event.name}` : event.kind === 'ready' ? 'Server ready' : `Session started · ${project()?.name || event.directory}`;
+  const kindLabel = event => event.kind === 'save' ? 'FILE SAVED' : event.kind === 'command' ? event.check ? event.check.toUpperCase() : event.dependencyInstall ? 'DEPENDENCY INSTALL' : 'COMMAND' : event.kind === 'file' ? 'FILE CHANGE' : event.kind === 'branch' ? 'BRANCH' : event.kind === 'checkpoint' ? 'CHECKPOINT' : event.kind === 'ready' ? 'SERVER READY' : 'SESSION';
+  const symbol = event => event.kind === 'save' ? '📝' : event.kind === 'command' ? event.check ? event.status === 'passed' ? '✅' : event.status === 'failed' ? '❌' : '›_' : event.dependencyInstall ? '📦' : '›_' : event.kind === 'file' ? '◇' : event.kind === 'branch' ? '⑂' : event.kind === 'checkpoint' ? '◆' : event.kind === 'ready' ? '◉' : '⌁';
   const duration = event => event.finishedAt && event.finishedAt >= event.at ? `${Math.max(0.1, (event.finishedAt - event.at) / 1000).toFixed(1)}s` : '';
   const status = event => event.kind === 'command' ? event.status : event.kind;
   const openingSource = event => event.reason === 'startup' ? 'Extension started' : event.reason === 'folder-added' ? 'Folder added' : 'Opening recorded';
   const openingReason = event => event.reason === 'startup' ? 'TimeMachine started with this project folder open.' : event.reason === 'folder-added' ? 'This project folder was added to the VS Code workspace.' : 'Folder was open when TimeMachine started, or was added to the workspace.';
   const eventInfo = event => {
     if (event.kind === 'save') return event.added === undefined ? 'Snapshot unavailable' : `+${event.added}  −${event.removed}`;
-    if (event.kind === 'command') return `${event.status}${duration(event) ? ` · ${duration(event)}` : ''}`;
+    if (event.kind === 'command') return `${event.status[0].toUpperCase() + event.status.slice(1)}${event.lastKnownGood ? ' · LAST KNOWN GOOD' : ''}${duration(event) ? ` · ${duration(event)}` : ''}`;
+    if (event.kind === 'file') return event.oldName ? `From ${event.oldName}` : event.change;
+    if (event.kind === 'branch') return event.commit || '';
+    if (event.kind === 'checkpoint') return `${event.files?.length || 0} files`;
     if (event.kind === 'ready') return event.terminal;
     return openingReason(event);
   };
@@ -129,7 +132,7 @@
     }
     $('result-count').textContent = `${events.length} ${events.length === 1 ? 'event' : 'events'}`;
     let previousDay = '';
-    for (const event of events) {
+    for (const [index, event] of events.entries()) {
       const eventDay = new Date(event.at).toDateString();
       if (eventDay !== previousDay) {
         const divider = create('div', 'date-divider', day(event.at)); container.append(divider);
@@ -151,6 +154,9 @@
         meta.append(create('span', 'node-folder', event.directory), create('span', 'node-info', eventInfo(event)));
       }
       card.append(dot, top, title, meta); row.append(card); container.append(row);
+      if (event.kind === 'opened' && event.reason === 'startup' && index < events.length - 1 && new Date(events[index + 1].at).toDateString() === eventDay) {
+        container.append(create('div', 'session-divider', 'Earlier session'));
+      }
     }
     requestAnimationFrame(drawEdges);
   }
@@ -265,6 +271,7 @@
     }
     if (event.kind === 'command') {
       section.append(detailRow('Result', event.status), detailRow('Terminal', event.terminal));
+      if (event.lastKnownGood) section.append(detailRow('Milestone', 'LAST KNOWN GOOD'));
       if (event.exitCode !== undefined) section.append(detailRow('Exit code', event.exitCode));
       if (duration(event)) section.append(detailRow('Duration', duration(event)));
       if (event.cwdInferred) section.append(create('p', 'detail-note', 'Folder was inferred because the shell did not report its working directory.'));
@@ -292,7 +299,12 @@
       detail.append(actions);
     }
     if (event.kind === 'command') {
-      const actions = create('div', 'detail-actions'); actions.append(action('Copy command', 'copyCommand', event.id, true)); detail.append(actions);
+      const actions = create('div', 'detail-actions');
+      if (event.canInvestigate) actions.append(action('What Changed?', 'whatChanged', event.id, true));
+      actions.append(action('Copy command', 'copyCommand', event.id, !event.canInvestigate)); detail.append(actions);
+    }
+    if (event.kind === 'checkpoint') {
+      const actions = create('div', 'detail-actions'); actions.append(action('Compare with current files', 'compareCheckpoint', event.id, true)); detail.append(actions);
     }
     const deleteActions = create('div', 'detail-actions'); deleteActions.append(action('Delete this event', 'deleteEvent', event.id)); detail.append(deleteActions);
   }
